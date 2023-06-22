@@ -1,52 +1,101 @@
-WITH 
-CLI AS (SELECT DISTINCT C.CLICODIGO,
-                              CLINOMEFANT,
-                                     C.GCLCODIGO,
-                                      GCLNOME GRUPO,  
-                                        SETOR
-                                         FROM CLIEN C
-                                          LEFT JOIN (SELECT CLICODIGO,E.ZOCODIGO,ZODESCRICAO SETOR FROM ENDCLI E
-                                            LEFT JOIN (SELECT ZOCODIGO,ZODESCRICAO FROM ZONA WHERE ZOCODIGO IN (20,21,22,23,24,25,26,27,28))Z ON E.ZOCODIGO=Z.ZOCODIGO WHERE ENDFAT='S')A ON C.CLICODIGO=A.CLICODIGO
-                                             LEFT JOIN GRUPOCLI GR ON C.GCLCODIGO=GR.GCLCODIGO),
 
 
-CLI1 AS (SELECT DISTINCT CL.CLICODIGO,
-                           GCLCODIGO,
-                              GRUPO,
-                               TBPCODIGO,
-                                SETOR  FROM CLITBP CL 
-LEFT JOIN CLI C ON CL.CLICODIGO=C.CLICODIGO),
+WITH PED_DT AS (SELECT ID_PEDIDO FROM PEDID WHERE PEDDTEMIS BETWEEN DATEADD(-60 DAY TO CURRENT_DATE) AND 'TODAY'),
 
-CLI2 AS (SELECT DISTINCT 
-                  CL.CLICODIGO,
-                           GCLCODIGO,
-                              GRUPO,
-                               TBPCODIGO,
-                                SETOR FROM CLITBPCOMB CL 
-LEFT JOIN CLI C ON CL.CLICODIGO=C.CLICODIGO)
+PED AS (SELECT P.ID_PEDIDO,CLICODIGO,PEDDTEMIS,FUNCODIGO2,PEDORIGEM,FISCODIGO1 
+           FROM PEDID P
+            INNER JOIN PED_DT D ON P.ID_PEDIDO=D.ID_PEDIDO
+             WHERE PEDORIGEM IN ('D','E')),
 
-SELECT TA.TBPCODIGO COD_TABELA,
-                      CLICODIGO,
-                       GCLCODIGO,
-                        GRUPO,
-                         TBPDESCRICAO DESCRICAO,
-                          TBPDTINICIO INICIO,
-                           TBPDTVALIDADE VALIDADE,
-                             SETOR 
-                              FROM TABPRECO TA
-LEFT JOIN CLI1 C1 ON TA.TBPCODIGO=C1.TBPCODIGO
-WHERE TBPSITUACAO='A' AND TBPDTVALIDADE >='TODAY' AND 
-TBPDESCRICAO NOT LIKE '%PROMO DO MES%' AND TBPTABCOMB='N' UNION
+PED_GR AS (SELECT PG.ID_PEDIDO,CLICODIGO,PEDDTEMIS,PEDORIGEM,FISCODIGO1 
+                FROM PEDID PG 
+                  INNER JOIN PED_DT D ON PG.ID_PEDIDO=D.ID_PEDIDO
+                   WHERE FISCODIGO1 IN ('5.94L','5.94G','5.91O')),
 
-SELECT TA.TBPCODIGO COD_TABELA,
-                     CLICODIGO,
-                      GCLCODIGO,
-                       GRUPO,
-                        TBPDESCRICAO DESCRICAO,
-                         TBPDTINICIO INICIO, 
-                          TBPDTVALIDADE VALIDADE,
-                           SETOR 
-                            FROM TABPRECO TA
-LEFT JOIN CLI2 C2 ON TA.TBPCODIGO=C2.TBPCODIGO
-WHERE TBPSITUACAO='A' AND TBPDTVALIDADE >='TODAY' AND 
-TBPDESCRICAO NOT LIKE '%PROMO DO MES%' AND TBPTABCOMB='S'
+USE AS (SELECT FUNNOME,F.FUNCODIGO,USUNOME,USUCODIGO FROM FUNCIO F
+                          LEFT JOIN USUARIO  U ON U.FUNCODIGO=F.FUNCODIGO                
+                            WHERE 
+                            (
+                            -- FILIAIS
+                            F.FUNCODIGO IN (2011,2029,1613,1973)
+                            OR
+                            -- FUNCIONARIOS MATRIZ
+                            DPTCODIGO=2
+                            OR
+                            -- OUTROS
+                            F.FUNCODIGO IN (43,2022)
+                            OR
+                            USUCODIGO=1
+                            )),
+
+UNI AS (SELECT EMPCODIGO EMPRESA,
+           A.ID_PEDIDO,
+            FISCODIGO1 CFOP, 
+            PEDORIGEM,
+             CLICODIGO,
+              USUNOME USUARIO,
+               FUNNOME NOME,
+                APDATA 
+                FROM ACOPED A
+INNER JOIN PED P ON A.ID_PEDIDO=P.ID_PEDIDO
+INNER JOIN USE U ON A.USUCODIGO=U.USUCODIGO
+WHERE LPCODIGO=1 
+
+UNION
+
+SELECT EMPCODIGO EMPRESA,
+           A2.ID_PEDIDO,
+            FISCODIGO1 CFOP,
+            PEDORIGEM,
+             CLICODIGO,
+              USUNOME USUARIO,
+               FUNNOME NOME,
+                APDATA 
+                FROM ACOPED A2
+INNER JOIN PED_GR PG ON A2.ID_PEDIDO=PG.ID_PEDIDO
+INNER JOIN USE U2 ON A2.USUCODIGO=U2.USUCODIGO
+WHERE LPCODIGO=1
+
+
+UNION
+
+SELECT EMPCODIGO EMPRESA,
+           A.ID_PEDIDO,
+            FISCODIGO1 CFOP,
+            PEDORIGEM,
+             CLICODIGO,
+              USUNOME USUARIO,
+               FUNNOME NOME,
+                APDATA 
+                FROM ACOPED A
+INNER JOIN PED P ON A.ID_PEDIDO=P.ID_PEDIDO
+INNER JOIN USE U2 ON A.USUCODIGO=U2.USUCODIGO
+WHERE LPCODIGO=42
+
+UNION
+
+SELECT EMPCODIGO EMPRESA,
+           A2.ID_PEDIDO,
+            FISCODIGO1 CFOP,
+            PEDORIGEM,
+             CLICODIGO,
+              USUNOME USUARIO,
+               FUNNOME NOME,
+                APDATA 
+                FROM ACOPED A2
+INNER JOIN PED_GR PG ON A2.ID_PEDIDO=PG.ID_PEDIDO
+INNER JOIN USE U2 ON A2.USUCODIGO=U2.USUCODIGO
+WHERE LPCODIGO=42
+
+)
+
+SELECT DISTINCT 
+         EMPRESA,
+           ID_PEDIDO,
+            CFOP,
+            PEDORIGEM,
+             CLICODIGO,
+              USUARIO,
+               NOME,
+                APDATA 
+                FROM UNI
